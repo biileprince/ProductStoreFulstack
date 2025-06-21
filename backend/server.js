@@ -32,6 +32,10 @@ app.use(
   })
 );
 
+app.get('/healthz', (req, res) => {
+  res.status(200).send('OK');
+});
+
 app.use(
   helmet({
     contentSecurityPolicy: false,
@@ -79,6 +83,12 @@ app.use(async (req, res, next) => {
   }
 });
 
+
+const uploadDir = path.join(rootDir, 'backend', 'public', 'uploads');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+  console.log('Created upload directory:', uploadDir);
+}
 // 7) your API routes
 app.use("/api/products", productRoutes);
 
