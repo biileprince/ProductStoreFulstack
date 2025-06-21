@@ -1,0 +1,16 @@
+
+services:
+  - type: web
+    name: permstack-full
+    env: node
+    buildCommand: |
+      npm install
+      cd frontend
+      npm install
+      npm run build
+    startCommand: node backend/server.js
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: NODE_ENV
+        value: production
