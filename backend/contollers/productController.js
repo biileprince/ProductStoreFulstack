@@ -1,31 +1,47 @@
 import fs from 'fs';
 import path from 'path';
 import { sql } from "../config/db.js";
-import { fileURLToPath } from "url";
+import { fileURLToPath } from 'url';
 
 // ES module fix for __dirname
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Absolute path to backend/public/uploads relative to this file
+const uploadDir = path.join(__dirname, '..', 'public', 'uploads');
+
+// Ensure the uploads directory exists
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
 // Save image to filesystem
 const saveImage = (image) => {
-  const uploadDir = path.join(__dirname, '../../public/uploads');
-  if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir, { recursive: true });
-  }
-  
-  const sanitizedFilename = `${Date.now()}-${image.name.replace(/[^a-zA-Z0-9.]/g, '-')}`;
-  const imagePath = path.join(uploadDir, sanitizedFilename);
-  image.mv(imagePath);
-  return `/uploads/${sanitizedFilename}`;
+  // sanitize the original filename: lowercase, alphanumeric, dot, underscore, hyphen
+  const baseName = image.name
+    .replace(/[^a-zA-Z0-9._-]/g, '-')  // replace invalid chars
+    .replace(/-+/g, '-')               // collapse multiple hyphens
+    .toLowerCase();
+
+  const filename = `${Date.now()}-${baseName}`;
+  const fullPath = path.join(uploadDir, filename);
+
+  console.log('🗄️ Saving upload to:', fullPath);
+  image.mv(fullPath);
+
+  return filename;
 };
 
 // Delete old image
 const deleteOldImage = (imagePath) => {
   if (imagePath) {
-    const fullPath = path.join(__dirname, '../../public', imagePath);
-    if (fs.existsSync(fullPath)) {
-      fs.unlinkSync(fullPath);
+    try {
+      const fullPath = path.join(uploadDir, imagePath);
+      if (fs.existsSync(fullPath)) {
+        fs.unlinkSync(fullPath);
+      }
+    } catch (error) {
+      console.error('Error deleting old image:', error);
     }
   }
 };
@@ -45,13 +61,12 @@ export const createProduct = async (req, res) => {
   const image = req.files?.image;
 
   if (!name || !price || !image) {
-    return res.status(400).json({ 
-      success: false, 
-      message: "Name, price, and image are required" 
+    return res.status(400).json({
+      success: false,
+      message: "Name, price, and image are required"
     });
   }
 
-  // Validate image type
   const validTypes = ['image/jpeg', 'image/png', 'image/gif'];
   if (!validTypes.includes(image.mimetype)) {
     return res.status(400).json({
@@ -61,10 +76,10 @@ export const createProduct = async (req, res) => {
   }
 
   try {
-    const imagePath = saveImage(image);
+    const filename = saveImage(image);
     const newProduct = await sql`
       INSERT INTO products (name, price, image)
-      VALUES (${name}, ${price}, ${imagePath})
+      VALUES (${name}, ${price}, ${filename})
       RETURNING *
     `;
     res.status(201).json({ success: true, data: newProduct[0] });
@@ -94,24 +109,20 @@ export const updateProduct = async (req, res) => {
   const image = req.files?.image;
 
   if (!name || !price) {
-    return res.status(400).json({ 
-      success: false, 
-      message: "Name and price are required" 
+    return res.status(400).json({
+      success: false,
+      message: "Name and price are required"
     });
   }
 
   try {
-    // Get current product
     const currentProduct = await sql`SELECT * FROM products WHERE id=${id}`;
     if (currentProduct.length === 0) {
       return res.status(404).json({ success: false, message: "Product not found" });
     }
 
-    let imagePath = currentProduct[0].image;
-    
-    // Handle new image
+    let filename = currentProduct[0].image;
     if (image) {
-      // Validate image type
       const validTypes = ['image/jpeg', 'image/png', 'image/gif'];
       if (!validTypes.includes(image.mimetype)) {
         return res.status(400).json({
@@ -119,22 +130,16 @@ export const updateProduct = async (req, res) => {
           message: "Invalid image type. Only JPEG, PNG, and GIF are allowed"
         });
       }
-      
-      // Delete old image
-      deleteOldImage(currentProduct[0].image);
-      
-      // Save new image
-      imagePath = saveImage(image);
+      deleteOldImage(filename);
+      filename = saveImage(image);
     }
 
-    // Update product
     const updatedProduct = await sql`
       UPDATE products
-      SET name=${name}, price=${price}, image=${imagePath}
+      SET name=${name}, price=${price}, image=${filename}
       WHERE id=${id}
       RETURNING *
     `;
-
     res.status(200).json({ success: true, data: updatedProduct[0] });
   } catch (error) {
     console.error("Update product error:", error);
@@ -149,11 +154,7 @@ export const deleteProduct = async (req, res) => {
     if (product.length === 0) {
       return res.status(404).json({ success: false, message: "Product not found" });
     }
-    
-    // Delete image
     deleteOldImage(product[0].image);
-    
-    // Delete from database
     await sql`DELETE FROM products WHERE id=${id}`;
     res.status(200).json({ success: true, data: product[0] });
   } catch (error) {

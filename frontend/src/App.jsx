@@ -1,27 +1,29 @@
-import React from "react";
-
-import { Route, Routes } from "react-router-dom";
-import ProductPage from "./pages/productPage";
-import HomePage from "./pages/Home";
-
-import { useThemeStore } from "./../store/useThemeStore";
+// src/App.jsx
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import ProductList from './components/ProductList';
+import ProductDetail from './pages/ProductDetail';
+import CreateProduct from './pages/CreateProduct';
+import EditProduct from './pages/EditProduct';
 import Navbar from './components/Navbar';
+import Footer from './components/Footer';
 
-const App = () => {
-  const { theme } = useThemeStore();
-
+function App() {
   return (
-    <div
-      className="min-h-screen bg-base-200 transition-colors duration-300 "
-      data-theme={theme}
-    >
-      <Navbar />
-      <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/product/:id" element={<ProductPage />} />
-      </Routes>
-    </div>
+    <Router>
+      <div className="flex flex-col min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+        <Navbar />
+        <main className="flex-grow container mx-auto px-4 py-8">
+          <Routes>
+            <Route path="/" element={<ProductList />} />
+            <Route path="/product/:id" element={<ProductDetail />} />
+            <Route path="/create-product" element={<CreateProduct />} />
+            <Route path="/edit-product/:id" element={<EditProduct />} />
+          </Routes>
+        </main>
+        <Footer />
+      </div>
+    </Router>
   );
-};
+}
 
 export default App;
